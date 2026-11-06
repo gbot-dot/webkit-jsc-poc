@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>WebKit / JSC Security Research PoC</title>
+<style>
+body { font-family: system-ui, sans-serif; margin: 2rem; background: #111; color: #eee; }
+pre { background: #222; padding: 1rem; overflow: auto; border-radius: 6px; }
+button { padding: 0.5rem 1rem; margin: 0.25rem; background: #0a84ff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+.status { margin: 1rem 0; padding: 1rem; background: #222; border-radius: 6px; }
+.ok { color: #30d158; }
+.fail { color: #ff453a; }
+.warn { color: #ff9f0a; }
+</style>
+</head>
+<body>
+<h1>WebKit / JavaScriptCore Security Research PoC</h1>
+<p>Controlled regression tests for type confusion, JIT correctness, GC lifetime, and object representation.</p>
+
+<div class="status" id="env"></div>
+<div>
+  <button id="run">Run all tests</button>
+  <button id="clear">Clear</button>
+</div>
+<pre id="out"></pre>
+
+<script src="poc.js"></script>
+<script src="verify.js"></script>
+<script>
+const out = document.getElementById('out');
+const env = document.getElementById('env');
+
+function log(msg, cls) {
+  const span = document.createElement('div');
+  span.textContent = msg;
+  if (cls) span.className = cls;
+  out.appendChild(span);
+}
+
+async function detectEnvironment() {
+  const ua = navigator.userAgent;
+  const lines = [
+    `User-Agent: ${ua}`,
+    `Platform: ${navigator.platform}`,
+    `Hardware concurrency: ${navigator.hardwareConcurrency}`,
+  ];
+
+  // Feature probes that can help distinguish engines (not definitive)
+  lines.push(`BigInt: ${typeof BigInt !== 'undefined'}`);
+  lines.push(`WeakRef: ${typeof WeakRef !== 'undefined'}`);
+  lines.push(`FinalizationRegistry: ${typeof FinalizationRegistry !== 'undefined'}`);
+
+  // Simple JIT heuristic: repeated execution of a monomorphic function
+  const jitHint = await measureJitHint();
+  lines.push(`JIT hint (timing ratio): ${jitHint.ratio.toFixed(3)} (${jitHint.likely ? 'likely JIT' : 'interpreter or cold'})`);
+
+  env.innerHTML = lines.map(l => `<div>${l}</div>`).join('');
+  return { ua, jitHint };
+}
+
+async function measureJitHint() {
+  function hot(n) {
+    let s = 0;
+    for (let i = 0; i < n; i++) s += i;
+    return s;
+  }
+  // Warm
+  for (let i = 0; i < 100; i++) hot(1000);
+  const t1 = performance.now();
+  hot(1_000_000);
+  const warm = performance.now() - t1;
+
+  // Cold path (new function each time, harder to optimize)
+  const t2 = performance.now();
+  for (let i = 0; i < 100; i++) {
+    const f = new Function('n', 'let s=0; for(let i=0;i<n;i++) s+=i; return s;');
+    f(10000);
+  }
+  const cold = performance.now() - t2;
+  const ratio = cold / Math.max(warm, 0.001);
+  return { ratio, likely: ratio > 3, warm, cold };
+}
+
+document.getElementById('run').onclick = async () => {
+  out.textContent = '';
+  const envInfo = await detectEnvironment();
+  log('=== Environment ===');
+  log(JSON.stringify(envInfo, null, 2));
+
+  log('\n=== Running poc.js tests ===');
+  const results = await runPocTests(log);
+
+  log('\n=== Running verify.js assertions ===');
+  const verify = runVerification(results, log);
+  log(verify.summary, verify.passed ? 'ok' : 'fail');
+};
+
+document.getElementById('clear').onclick = () => { out.textContent = ''; };
+</script>
+</body>
+</html>

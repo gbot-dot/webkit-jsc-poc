@@ -28,6 +28,7 @@ The following outcomes are the correct, non-vulnerable results. Any deviation on
 - Shape transition after monomorphic warm-up returns the new property value
 - Integer loop sums match the closed-form / iterative expectation
 - Side-effect counters fire exactly once per call
+- Array sum after string push produces the left-to-right concatenation result (`'64'`)
 - Dense array reduce produces the arithmetic sum
 - Uint32Array stores the full 32-bit value
 - WeakRef (when present) and returned primitive values remain consistent under allocation pressure

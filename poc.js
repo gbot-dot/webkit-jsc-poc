@@ -50,7 +50,7 @@
     for (let i = 0; i < 2000; i++) sum(arr);
     arr.push('4');
     const r3 = sum(arr);
-    record('typeConfusion', 'array mode after push string', 10, r3); // 1+2+3+"4" coerces to 10 in + 
+    record('typeConfusion', 'array mode after push string', '64', r3); // 0+1+2+3+'4' => '64'
   }
 
   // ---------------------------------------------------------------------------
